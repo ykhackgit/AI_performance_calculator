@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Inference Performance Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: linear-gradient(135deg,#081229 0%, #0e1b2b 35%, #112c3f 100%);
+      --card: rgba(255,255,255,0.06);
+      --glass: rgba(255,255,255,0.04);
+      --accent: #6ee7b7;
+      --muted: rgba(255,255,255,0.6);
+      --glass-border: rgba(255,255,255,0.06);
+      --danger: #ff6b6b;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:#e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .wrap{
+      max-width:1100px;margin:32px auto;padding:28px;border-radius:16px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 8px 32px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03);
+    }
+    header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+    .logo{width:64px;height:64px;border-radius:12px;background:linear-gradient(135deg,#2dd4bf,#60a5fa);display:flex;align-items:center;justify-content:center;font-weight:800;color:#06283d}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:20px}
+    .card{background:var(--card);padding:18px;border-radius:12px;border:1px solid var(--glass-border)}
+    .card h2{margin:0 0 12px 0;font-size:15px}
+
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .row{display:flex;gap:12px;margin-bottom:12px}
+    .col{flex:1}
+    input[type=number], select, input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-size:14px}
+    input[type=range]{width:100%}
+    .small{font-size:12px;color:var(--muted)}
+
+    .controls{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:0;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:white;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+
+    .output{display:flex;flex-direction:column;gap:10px}
+    .stat{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));border:1px solid rgba(255,255,255,0.03)}
+    .stat .label{color:var(--muted);font-size:13px}
+    .stat .value{font-weight:700;font-size:16px}
+
+    .footer{margin-top:16px;color:var(--muted);font-size:13px}
+    .hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+    .grid-right{display:flex;flex-direction:column;gap:12px}
+    .topline{display:flex;gap:10px;align-items:center}
+
+    pre{background:rgba(0,0,0,0.2);padding:10px;border-radius:8px;overflow:auto}
+
+    /* responsive */
+    @media (max-width:980px){.grid{grid-template-columns:1fr}.wrap{margin:12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">AI</div>
+      <div>
+        <h1>AI Inference Performance Calculator</h1>
+        <p class="lead">Estimate tokens/sec, first-token latency and memory/bandwidth bottlenecks from hardware + model inputs.</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Hardware & Cluster</h2>
+          <div class="controls">
+            <div>
+              <label>GPU TFLOPS (peak)</label>
+              <input id="tflops" type="number" step="1" value="1200">
+              <div class="small">Total TFLOPS per GPU (peak theoretical)</div>
+            </div>
+            <div>
+              <label>VRAM (GB)</label>
+              <input id="vram" type="number" step="1" value="128">
+            </div>
+
+            <div>
+              <label>Memory Bandwidth (GB/s)</label>
+              <input id="membw" type="number" step="1" value="250">
+            </div>
+            <div>
+              <label>GPUs in Cluster</label>
+              <input id="ngpus" type="number" step="1" value="1" min="1">
+            </div>
+
+            <div>
+              <label>Ethernet Bandwidth (Gb/s per NIC)</label>
+              <input id="ethbw" type="number" step="1" value="100">
+            </div>
+            <div>
+              <label>Number of Ethernet NICs</label>
+              <input id="neth" type="number" step="1" value="2">
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h2>Model & Runtime</h2>
+          <div class="controls">
+            <div>
+              <label>Model Params (B)</label>
+              <input id="params" type="number" step="1" value="70">
+            </div>
+            <div>
+              <label>Precision</label>
+              <select id="precision">
+                <option value="int8">INT8 (1 byte)</option>
+                <option value="fp16">FP16 (2 bytes)</option>
+                <option value="fp32">FP32 (4 bytes)</option>
+                <option value="fp8">FP8 (1 byte)</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Layers</label>
+              <input id="layers" type="number" value="70">
+            </div>
+            <div>
+              <label>Hidden size</label>
+              <input id="hidden" type="number" value="8192">
+            </div>
+
+            <div>
+              <label>FLOPs per param multiplier</label>
+              <select id="flopMul">
+                <option value="2">2 × P (optimistic)</option>
+                <option value="6" selected>6 × P (realistic)</option>
+              </select>
+            </div>
+            <div>
+              <label>GPU sustained utilization (%)</label>
+              <input id="util" type="number" value="60" min="1" max="100">
+            </div>
+
+            <div>
+              <label>Fraction of weights read per token (f)</label>
+              <input id="f" type="number" step="0.0001" value="0.001">
+              <div class="small">Typical: 0.001 = 0.1% (lower is better: reuse cached weights)</div>
+            </div>
+            <div>
+              <label>Context length (tokens)</label>
+              <input id="ctx" type="number" value="2048">
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h2>Actions</h2>
+          <div style="display:flex;gap:10px">
+            <button class="btn" id="calc">Calculate</button>
+            <button class="btn ghost" id="reset">Reset</button>
+            <button class="btn ghost" id="example">Load Example (70B)</button>
+          </div>
+          <div class="hint">Tip: change 'f' to model caching behavior. Smaller f reduces memory traffic per token.</div>
+        </div>
+      </div>
+
+      <div class="grid-right">
+        <div class="card">
+          <h2>Results</h2>
+          <div class="output" id="results">
+            <div class="stat"><div class="label">Model weights (approx)</div><div class="value" id="weights">—</div></div>
+            <div class="stat"><div class="label">KV per token (bytes)</div><div class="value" id="kv">—</div></div>
+            <div class="stat"><div class="label">Compute-limited tokens/sec</div><div class="value" id="toks_compute">—</div></div>
+            <div class="stat"><div class="label">Bandwidth-limited tokens/sec</div><div class="value" id="toks_bandwidth">—</div></div>
+            <div class="stat"><div class="label">Practical tokens/sec (min of limits)</div><div class="value" id="toks_final">—</div></div>
+            <div class="stat"><div class="label">Per-token time (ms)</div><div class="value" id="pt_ms">—</div></div>
+            <div class="stat"><div class="label">First-token latency (ms)</div><div class="value" id="first_ms">—</div></div>
+            <div class="stat"><div class="label">Bandwidth used (GB/s)</div><div class="value" id="bw_used">—</div></div>
+            <div class="stat"><div class="label">Network aggregate (Gb/s)</div><div class="value" id="net_total">—</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Charts & Explanation</h2>
+          <div class="small">The calculator computes:</div>
+          <ul class="small">
+            <li>Weight storage from params & precision.</li>
+            <li>KV cache per token ≈ 2 × Layers × Hidden × dtype bytes.</li>
+            <li>Compute roof: (NGPUs × TFLOPS × utilization) / (FLOPs per token).</li>
+            <li>Bandwidth roof: MemBandwidth / bytes-per-token.</li>
+            <li>Final throughput = min(compute, bandwidth).</li>
+          </ul>
+          <div style="margin-top:8px"><pre id="explain">Press Calculate to see step-by-step math.</pre></div>
+        </div>
+
+        <div class="card" style="text-align:center">
+          <div class="small">Export</div>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+            <button class="btn" id="copy">Copy results</button>
+            <button class="btn ghost" id="download">Download JSON</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footer">Built for quick estimates. Use for planning, not final engineering decisions.</div>
+  </div>
+
+  <script>
+    function fmt(n, dp=2){if(!isFinite(n))return '—';if(Math.abs(n)>=1000) return n.toLocaleString(undefined,{maximumFractionDigits:dp}); return Number(n.toFixed(dp)).toLocaleString();}
+
+    function calcAll(){
+      const tflops = Number(document.getElementById('tflops').value) || 0; // TFLOPS per GPU
+      const vramGB = Number(document.getElementById('vram').value) || 0;
+      var  membwGB = Number(document.getElementById('membw').value) || 0; // GB/s
+      const ngpus = Number(document.getElementById('ngpus').value) || 1;
+      const ethbwGb = Number(document.getElementById('ethbw').value) || 0;
+      const neth = Number(document.getElementById('neth').value) || 0;
+
+      const paramsB = Number(document.getElementById('params').value) || 0; // in billions
+      const precision = document.getElementById('precision').value;
+      const layers = Number(document.getElementById('layers').value) || 1;
+      const hidden = Number(document.getElementById('hidden').value) || 1;
+      const flopMul = Number(document.getElementById('flopMul').value) || 6;
+      const utilpct = Number(document.getElementById('util').value) || 60;
+      const f = Number(document.getElementById('f').value) || 0.001;
+      const ctx = Number(document.getElementById('ctx').value) || 2048;
+      membwGB=ngpus*membwGB; // total bandwidth
+      // dtype bytes
+      const dtypeBytes = precision==='fp32'?4:(precision==='fp16'?2:1);
+      const params = paramsB * 1e9;
+
+      // weights size (bytes)
+      const weightsBytes = params * (precision==='int8'?1:dtypeBytes);
+
+      // KV per token: approximate 2 * layers * hidden * dtypeBytes
+      const kvPerToken = 2 * layers * hidden * 1; // use FP16-like storage for KV baseline (2 bytes) in many systems
+      // but allow quantized KV later; here we keep 2 bytes baseline -> but we'll show actual bytes using dtype selection
+      const kvBytes = 2 * layers * hidden * 2; // using FP16 for KV by default
+
+      // FLOPs per token
+      const flopsPerToken = flopMul * params; // total flops per token (approx)
+
+      // Compute-limited tokens/s
+      const peakFlopsPerSec = tflops * 1e12 * ngpus; // TFLOPS to FLOPS
+      const sustained = peakFlopsPerSec * (utilpct/100);
+      const toks_compute = sustained / flopsPerToken;
+
+      // Bandwidth-limited tokens/s
+      // bytes-per-token = f * weightsBytes + kvBytes
+      const bytesPerToken = f * weightsBytes + kvBytes;
+      const membwBytes = membwGB * 1e9;
+      const toks_bandwidth = membwBytes / bytesPerToken;
+
+      // Final
+      const toks_final = Math.min(toks_compute, toks_bandwidth);
+      const pt_ms = toks_final>0 ? (1000 / toks_final) : Infinity;
+
+      // First token time: assume one token extra overhead (20-50%) plus if need to move f*weightsBytes once
+      const base_first_ms = (1000 / Math.max(toks_compute,1));
+      // If initial streaming necessary: time to move f_weight_init = min(weightsBytes, f*weightsBytes*layers) -- simplified
+      const maybe_stream_time_s = (f*weightsBytes) / membwBytes; // seconds to stream the fractional weight chunk
+      const first_ms = base_first_ms * 1.3 + maybe_stream_time_s*1000; // add 30% overhead plus streaming
+
+      // network aggregate
+      const net_total_gb = ethbwGb * neth; // in Gb/s
+
+      // bandwidth used
+      const bw_used = Math.min(membwBytes, bytesPerToken * toks_final); // bytes/s
+
+      // show
+      document.getElementById('weights').textContent = fmt(weightsBytes/1e9,3) + ' GB';
+      document.getElementById('kv').textContent = fmt(kvBytes) + ' B/token ('+fmt(kvBytes/1024)+' KiB)';
+      document.getElementById('toks_compute').textContent = fmt(toks_compute,2) + ' tok/s';
+      document.getElementById('toks_bandwidth').textContent = fmt(toks_bandwidth,2) + ' tok/s';
+      document.getElementById('toks_final').textContent = fmt(toks_final,2) + ' tok/s';
+      document.getElementById('pt_ms').textContent = fmt(pt_ms,3) + ' ms';
+      document.getElementById('first_ms').textContent = fmt(first_ms,3) + ' ms';
+      document.getElementById('bw_used').textContent = fmt(bw_used/1e9,3) + ' GB/s';
+      document.getElementById('net_total').textContent = fmt(net_total_gb) + ' Gb/s';
+
+      // explanation text
+      const expl = [];
+      expl.push('Params: ' + fmt(params/1e9,3) + 'B');
+      expl.push('Weights (bytes): ' + fmt(weightsBytes) + ' bytes');
+      expl.push('FLOPs/token (approx): ' + fmt(flopsPerToken,3) + ' FLOPs');
+      expl.push('Peak total FLOPs/s (sustained): ' + fmt(sustained) + ' FLOPs/s');
+      expl.push('Compute-limited tokens/s = sustained_FLOPs / FLOPs_per_token = ' + fmt(toks_compute,2));
+      expl.push('Bytes/token = f*weights + KV = ' + fmt(bytesPerToken) + ' bytes');
+      expl.push('Bandwidth-limited tokens/s = memBandwidth / bytes_per_token = ' + fmt(toks_bandwidth,2));
+      expl.push('Final throughput = min(compute, bandwidth) = ' + fmt(toks_final,2) + ' tok/s');
+      expl.push('Per-token time = 1000 / tok/s = ' + fmt(pt_ms,3) + ' ms');
+      expl.push('Estimated first-token latency = ' + fmt(first_ms,3) + ' ms (includes ~30% kernel overhead + any one-time streaming)');
+
+      document.getElementById('explain').textContent = expl.join('\n');
+
+      return {
+        params, weightsBytes, kvBytes, flopsPerToken, sustained, toks_compute, toks_bandwidth, toks_final, pt_ms, first_ms, bw_used
+      }
+    }
+
+    document.getElementById('calc').addEventListener('click',()=>{calcAll()});
+    document.getElementById('reset').addEventListener('click',()=>{location.reload()});
+    document.getElementById('example').addEventListener('click',()=>{
+      document.getElementById('tflops').value=1200;document.getElementById('vram').value=128;document.getElementById('membw').value=250;document.getElementById('ngpus').value=1;document.getElementById('params').value=70;document.getElementById('precision').value='int8';document.getElementById('layers').value=70;document.getElementById('hidden').value=8192;document.getElementById('flopMul').value=6;document.getElementById('util').value=60;document.getElementById('f').value=0.001;document.getElementById('ctx').value=2048;calcAll();
+    });
+
+    document.getElementById('copy').addEventListener('click',async ()=>{
+      const res = calcAll();
+      const obj = {
+        params: res.params, weightsGB: res.weightsBytes/1e9, toks_per_s: res.toks_final, per_token_ms: res.pt_ms, first_token_ms: res.first_ms
+      };
+      await navigator.clipboard.writeText(JSON.stringify(obj,null,2));
+      alert('Results copied to clipboard');
+    });
+
+    document.getElementById('download').addEventListener('click',()=>{
+      const res = calcAll();
+      const obj = {params: res.params, weightsGB: res.weightsBytes/1e9, toks_per_s: res.toks_final, per_token_ms: res.pt_ms, first_token_ms: res.first_ms};
+      const blob = new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');a.href=url;a.download='ai-inference-result.json';a.click();URL.revokeObjectURL(url);
+    });
+
+    // initial
+    calcAll();
+  </script>
+</body>
+</html>
