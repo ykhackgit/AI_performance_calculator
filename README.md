@@ -1,7 +1,7 @@
 # AI Inference Performance Calculator
 
 This interactive web application helps AI engineers and researchers estimate the inference performance of large language models based on hardware specs and model parameters. 
-
+Website Link :- [AI Performance Calculator](https://ykhackgit.github.io/AI_performance_calculator)
 ## Features
 - Compute-limited and bandwidth-limited token throughput estimation
 - First-token latency and per-token latency calculations
@@ -15,3 +15,6 @@ This interactive web application helps AI engineers and researchers estimate the
 
 ## Usage
 Open `index.html` in any modern web browser. Input hardware and model parameters, click **Calculate**, and view results instantly.
+
+
+Check out my [GitHub profile](https://github.com/ykhackgit) for more projects
